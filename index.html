@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juan Mecánico — Bot WhatsApp para Diagnóstico de Flotas</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 700px;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+
+        .description {
+            text-align: left;
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            margin: 30px 0;
+            border-left: 4px solid #667eea;
+        }
+
+        .description h2 {
+            color: #667eea;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        .features {
+            list-style: none;
+            text-align: left;
+            margin: 20px 0;
+        }
+
+        .features li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .features li:last-child {
+            border-bottom: none;
+        }
+
+        .features li:before {
+            content: "✓ ";
+            color: #667eea;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .contact {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #eee;
+        }
+
+        .contact p {
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .whatsapp-link {
+            display: inline-block;
+            background: #25D366;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 25px;
+            text-decoration: none;
+            margin-top: 15px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        .whatsapp-link:hover {
+            background: #20BA5A;
+        }
+
+        .footer {
+            margin-top: 30px;
+            color: #999;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🔧 🤖</div>
+
+        <h1>Juan Mecánico</h1>
+        <p class="subtitle">Bot WhatsApp para Diagnóstico Inteligente de Flotas PYME</p>
+
+        <div class="description">
+            <h2>¿Qué es Juan Mecánico?</h2>
+            <p>Un asistente inteligente basado en IA que ayuda a empresas de transporte a diagnosticar fallas en sus vehículos en tiempo real, directamente desde WhatsApp.</p>
+
+            <h2 style="margin-top: 20px;">Características</h2>
+            <ul class="features">
+                <li>Diagnóstico automático de fallas con IA (Gemini)</li>
+                <li>Registro de testigos visuales con fotos</li>
+                <li>Monitoreo de odómetro y kilometraje</li>
+                <li>Alertas automáticas para fallas críticas</li>
+                <li>Integración con Twilio WhatsApp Business</li>
+                <li>Cumplimiento PDPL (protección de datos)</li>
+            </ul>
+        </div>
+
+        <div class="contact">
+            <p><strong>¿Tienes una flota PYME y quieres probar Juan Mecánico?</strong></p>
+            <p style="font-size: 14px; color: #999;">Escríbenos por WhatsApp para solicitar acceso a la fase beta.</p>
+            <a href="https://wa.me/56600123456?text=Hola%21%20Me%20interesa%20probar%20Juan%20Mec%C3%A1nico" class="whatsapp-link">Contactar por WhatsApp</a>
+        </div>
+
+        <div class="footer">
+            <p>Juan Mecánico © 2026 | Desarrollado con ❤️ en Chile</p>
+            <p><a href="#" style="color: #999; text-decoration: none;">Política de Privacidad</a></p>
+        </div>
+    </div>
+</body>
+</html>
