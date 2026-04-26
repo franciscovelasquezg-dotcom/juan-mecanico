@@ -95,8 +95,15 @@ bot.on('message', async (msg) => {
         await reply(chatId, `📍 *Kilómetros*\n\n¿Estás *saliendo* o *llegando*?\n¿Cuántos km marca el odómetro?`, ['🚀 Saliendo', '🏁 Llegando']);
 
       } else if (esTestigo) {
-        setEstado(chatId, PASOS.ESPERANDO_VEHICULO, { tipo: 'TESTIGO' });
-        await reply(chatId, `🔴 *Testigo del tablero*\n\n¿Qué vehículo estás manejando?\nEscribe marca, modelo y año.\n\nEj: "Mercedes Actros 2020" o "Volvo FH 2021"`);
+        // Intentar extraer vehículo del mensaje inicial
+        const vehiculoEnMensaje = extraerVehiculo(texto);
+        if (vehiculoEnMensaje) {
+          setEstado(chatId, PASOS.ESPERANDO_DESCRIPCION, { tipo: 'TESTIGO', vehiculoDescripcion: vehiculoEnMensaje });
+          await reply(chatId, `✅ *${vehiculoEnMensaje}*\n\n🔴 ¿Cuál testigo o luz se encendió?\nDescríbelo o manda una foto del tablero.`);
+        } else {
+          setEstado(chatId, PASOS.ESPERANDO_VEHICULO, { tipo: 'TESTIGO' });
+          await reply(chatId, `🔴 *Testigo del tablero*\n\n¿Qué vehículo estás manejando?\nEscribe marca, modelo y año.\n\nEj: "Mercedes Actros 2020" o "Volvo FH 2021"`);
+        }
 
       } else if (esListo) {
         resetEstado(chatId);
@@ -177,6 +184,23 @@ bot.on('message', async (msg) => {
     resetEstado(chatId);
   }
 });
+
+// ── Extraer vehículo de texto libre ──────────────────────────
+function extraerVehiculo(texto) {
+  const marcas = ['toyota','hyundai','kia','chevrolet','ford','mercedes','benz','actros','volvo','scania',
+    'man','iveco','nissan','mitsubishi','suzuki','rexton','ssangyong','hino','fuso','jac','dfsk',
+    'renault','peugeot','citroën','citroen','volkswagen','vw','isuzu','faw','shacman'];
+  const t = texto.toLowerCase();
+  const encontrada = marcas.find(m => t.includes(m));
+  if (!encontrada) return null;
+
+  // Extraer año si viene en el mensaje
+  const ano = texto.match(/\b(19|20)\d{2}\b/)?.[0] || '';
+
+  // Capitalizar marca encontrada
+  const marca = encontrada.charAt(0).toUpperCase() + encontrada.slice(1);
+  return ano ? `${marca} ${ano}` : marca;
+}
 
 // ── Mostrar menú inicial ──────────────────────────────────────
 async function mostrarMenu(chatId, nombre) {
