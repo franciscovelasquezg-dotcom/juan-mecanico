@@ -4,7 +4,7 @@
 
 const { diagnosticarTestigo, reportarAveria, leerOdometro } = require('./gemini');
 const { saveHistorial, saveFalla, updateKmVehiculo } = require('./firestore');
-const { handleWhatsAppMessage } = require('./whatsapp');
+const { sendMessage } = require('./telegram');
 
 async function procesarFlujo({ intencion, telefono, conductor, vehiculo, empresa, mensaje, imagenUrl }) {
   try {

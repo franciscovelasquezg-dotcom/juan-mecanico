@@ -1,100 +1,91 @@
 /**
- * JUAN MECÁNICO — Cloud Function Principal
- * Entry point: recibe webhook de Twilio, procesa mensaje, envía respuesta
+ * JUAN MECÁNICO — Entry Point
+ * Canal: Telegram (migrado desde Twilio/WhatsApp)
+ * Pipeline: recibe update → valida conductor → detecta intención → procesa flujo → responde
  */
 
-require('dotenv').config();
+require('dotenv').config({ path: '../.env' });
 const express = require('express');
-const twilio = require('twilio');
-const { handleWhatsAppMessage } = require('./whatsapp');
+const { sendMessage, parsearUpdate, getImagenUrl } = require('./telegram');
 const { validarConductor } = require('./validacion');
 const { detectarIntencion } = require('./intencion');
 const { procesarFlujo } = require('./flujos');
 
 const app = express();
-app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
-
-// Middleware para validar firma Twilio
-const validateTwilioRequest = (req, res, next) => {
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const url = `${process.env.WEBHOOK_URL || 'http://localhost:3000'}${req.originalUrl}`;
-  const signature = req.get('X-Twilio-Signature') || '';
-
-  const isValid = twilio.validateRequest(
-    authToken,
-    signature,
-    url,
-    req.body
-  );
-
-  if (!isValid) {
-    console.warn('[SECURITY] Firma Twilio inválida. Rechazando request.');
-    return res.status(403).send('Forbidden');
-  }
-
-  next();
-};
 
 // ──────────────────────────────────────────────────────────────
 // HEALTH CHECK
 // ──────────────────────────────────────────────────────────────
 
 app.get('/health', (req, res) => {
-  res.status(200).send({
+  res.status(200).json({
     status: 'OK',
-    service: 'Juan Mecánico',
+    service: 'Juan Mecánico (Telegram)',
     timestamp: new Date().toISOString(),
   });
 });
 
 // ──────────────────────────────────────────────────────────────
-// WEBHOOK TWILIO VERIFICATION (GET)
+// WEBHOOK TELEGRAM (POST)
+// Telegram llama a este endpoint con cada mensaje recibido
 // ──────────────────────────────────────────────────────────────
-
-app.get('/webhook', (req, res) => {
-  console.log('[WEBHOOK] GET verificación exitosa');
-  res.status(200).send('OK');
-});
-
-// ──────────────────────────────────────────────────────────────
-// WEBHOOK TWILIO MESSAGE HANDLER (POST)
-// ──────────────────────────────────────────────────────────────
-// ⚠️ VALIDACIÓN COMENTADA PARA TESTING LOCAL
-// Descommentar validateTwilioRequest antes de production
 
 app.post('/webhook', async (req, res) => {
+  // Responder 200 inmediatamente a Telegram (evita retries)
+  res.status(200).send('OK');
+
   try {
-    console.log('[WEBHOOK] POST request received');
+    console.log('[WEBHOOK] Update recibido de Telegram');
 
-    const { From, Body, MediaUrl0 } = req.body;
-    const telefono = From.replace('whatsapp:', '');
-    const mensaje = Body || '';
-    const imagenUrl = MediaUrl0 || null;
+    const update = req.body;
 
-    console.log(`[MSG] De: ${telefono} | Texto: ${mensaje.substring(0, 50)}`);
+    // Parsear update al formato estándar
+    const parsed = parsearUpdate(update);
 
-    // PASO 1: Validar conductor
+    if (!parsed) {
+      console.log('[WEBHOOK] Update sin mensaje de texto, ignorando...');
+      return;
+    }
+
+    const { chatId, mensaje, imagenFileId, nombreUsuario } = parsed;
+
+    console.log(`[MSG] ChatId: ${chatId} | Usuario: ${nombreUsuario} | Texto: "${mensaje.substring(0, 50)}"`);
+
+    // Resolver URL de imagen si hay foto adjunta
+    let imagenUrl = null;
+    if (imagenFileId) {
+      imagenUrl = await getImagenUrl(imagenFileId);
+      console.log('[IMG] Imagen recibida, URL resuelta');
+    }
+
+    // En Telegram usamos chatId como identificador (equivale al teléfono en WhatsApp)
+    const telefono = String(chatId);
+
+    // ── PASO 1: Validar conductor ──────────────────────────────
     console.log('[VALIDACION] Verificando conductor en Firestore...');
     const { valido, conductor, vehiculo, empresa } = await validarConductor(telefono);
 
     if (!valido) {
       console.log('[VALIDACION] Conductor no registrado:', telefono);
-      const respuesta = `Hola 👋\n\nNo estás registrado en ${process.env.BOT_NOMBRE}.\nPara usar el sistema, pide a tu jefe que te agregue.\n\nSi eres dueño de empresa escribe a: contacto@juanmecanico.cl`;
-      await handleWhatsAppMessage(telefono, respuesta);
-      res.status(200).send('OK');
+      await sendMessage(chatId,
+        `Hola ${nombreUsuario} 👋\n\n` +
+        `No estás registrado en *${process.env.BOT_NOMBRE || 'Juan Mecánico'}*.\n` +
+        `Para usar el sistema, pide a tu jefe que te agregue.\n\n` +
+        `¿Eres dueño de empresa? Escribe a: contacto@juanmecanico.cl`
+      );
       return;
     }
 
     console.log('[VALIDACION] ✅ Conductor válido:', conductor.nombre);
 
-    // PASO 2: Detectar intención del mensaje
+    // ── PASO 2: Detectar intención ─────────────────────────────
     console.log('[INTENCION] Detectando intención...');
     const intencion = await detectarIntencion(mensaje, imagenUrl);
     console.log(`[INTENCION] Clasificado como: ${intencion}`);
 
-    // PASO 3: Procesar flujo correspondiente
-    console.log(`[FLUJO] Procesando flujo: ${intencion}`);
+    // ── PASO 3: Procesar flujo ─────────────────────────────────
+    console.log(`[FLUJO] Procesando: ${intencion}`);
     const respuesta = await procesarFlujo({
       intencion,
       telefono,
@@ -105,40 +96,43 @@ app.post('/webhook', async (req, res) => {
       imagenUrl,
     });
 
-    // PASO 4: Enviar respuesta
-    console.log('[RESPONSE] Enviando respuesta a:', telefono);
-    await handleWhatsAppMessage(telefono, respuesta);
+    // ── PASO 4: Enviar respuesta ───────────────────────────────
+    console.log('[RESPONSE] Enviando respuesta...');
+    await sendMessage(chatId, respuesta);
 
-    res.status(200).send('OK');
   } catch (error) {
-    console.error('[ERROR]', error.message);
-    const respuesta = `❌ Error técnico en ${process.env.BOT_NOMBRE}.\nIntenta en 2 minutos o llama a tu jefe.`;
+    console.error('[ERROR] Error en pipeline:', error.message);
+    console.error(error.stack);
 
+    // Intentar notificar al usuario del error
     try {
-      const telefono = req.body.From?.replace('whatsapp:', '');
-      if (telefono) await handleWhatsAppMessage(telefono, respuesta);
+      const update = req.body;
+      const parsed = parsearUpdate(update);
+      if (parsed?.chatId) {
+        await sendMessage(parsed.chatId,
+          `❌ Error técnico en ${process.env.BOT_NOMBRE || 'Juan Mecánico'}.\n` +
+          `Intenta en 2 minutos o llama a tu jefe.`
+        );
+      }
     } catch (err) {
-      console.error('[ERROR] No se pudo enviar error message:', err);
+      console.error('[ERROR] No se pudo enviar mensaje de error:', err.message);
     }
-
-    res.status(500).send('Error');
   }
 });
 
 // ──────────────────────────────────────────────────────────────
-// EXPORT PARA CLOUD FUNCTIONS
-// ──────────────────────────────────────────────────────────────
-
-exports.handleWhatsApp = app;
-
-// ──────────────────────────────────────────────────────────────
-// LOCAL DEVELOPMENT (si se corre con npm start)
+// LOCAL DEVELOPMENT
 // ──────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`🔧 Juan Mecánico corriendo en puerto ${PORT}`);
-    console.log(`Health: http://localhost:${PORT}/health`);
+    console.log(`\n🔧 Juan Mecánico (Telegram) corriendo en puerto ${PORT}`);
+    console.log(`   Health: http://localhost:${PORT}/health`);
+    console.log(`   Webhook: http://localhost:${PORT}/webhook`);
+    console.log(`\n   Para testear localmente usa ngrok:`);
+    console.log(`   ngrok http ${PORT}\n`);
   });
 }
+
+exports.juanMecanico = app;

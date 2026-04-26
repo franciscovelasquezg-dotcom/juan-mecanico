@@ -4,55 +4,66 @@
 
 const { getFirestore } = require('./firestore');
 
-/**
- * Validar conductor en Firestore
- * @param {string} telefono - Número en formato E.164
- * @returns {Promise<Object>} { valido, conductor, vehiculo, empresa }
- */
+// MODO TEST — conductores hardcodeados mientras se configura Firestore
+const CONDUCTORES_TEST = {
+  '7089130086': {
+    nombre: 'Francisco',
+    empresaId: 'empresa-test',
+    vehiculoId: 'vehiculo-test',
+    activo: true,
+  },
+};
+const VEHICULOS_TEST = {
+  'vehiculo-test': {
+    id: 'vehiculo-test',
+    patente: 'ABC-123',
+    marca: 'Mercedes-Benz',
+    modelo: 'Actros',
+    ano: 2020,
+    kmActual: 150000,
+  },
+};
+const EMPRESAS_TEST = {
+  'empresa-test': { id: 'empresa-test', nombre: 'Transportes Test' },
+};
+
 async function validarConductor(telefono) {
+  // ── Modo test: responder sin Firestore ────────────────────────
+  if (CONDUCTORES_TEST[telefono]) {
+    const conductor = CONDUCTORES_TEST[telefono];
+    return {
+      valido: true,
+      conductor: { id: telefono, ...conductor },
+      vehiculo: VEHICULOS_TEST[conductor.vehiculoId] || null,
+      empresa: EMPRESAS_TEST[conductor.empresaId] || null,
+    };
+  }
+
+  // ── Modo producción: Firestore ────────────────────────────────
   try {
     const db = getFirestore();
 
-    // 1. Buscar conductor
     const conductorSnap = await db.collection('conductores').doc(telefono).get();
-
     if (!conductorSnap.exists) {
       console.log('[VALIDACION] Conductor no existe:', telefono);
       return { valido: false, conductor: null };
     }
 
     const conductor = conductorSnap.data();
-
-    // 2. Verificar que está activo
     if (!conductor.activo) {
-      console.log('[VALIDACION] Conductor inactivo:', telefono);
       return { valido: false, conductor: null };
     }
 
-    // 3. Obtener vehículo asignado
     let vehiculo = null;
     if (conductor.vehiculoId) {
-      const vehiculoSnap = await db
-        .collection('vehiculos')
-        .doc(conductor.vehiculoId)
-        .get();
-
-      if (vehiculoSnap.exists) {
-        vehiculo = vehiculoSnap.data();
-      }
+      const v = await db.collection('vehiculos').doc(conductor.vehiculoId).get();
+      if (v.exists) vehiculo = v.data();
     }
 
-    // 4. Obtener empresa
     let empresa = null;
     if (conductor.empresaId) {
-      const empresaSnap = await db
-        .collection('empresas')
-        .doc(conductor.empresaId)
-        .get();
-
-      if (empresaSnap.exists) {
-        empresa = empresaSnap.data();
-      }
+      const e = await db.collection('empresas').doc(conductor.empresaId).get();
+      if (e.exists) empresa = e.data();
     }
 
     return {
@@ -67,6 +78,4 @@ async function validarConductor(telefono) {
   }
 }
 
-module.exports = {
-  validarConductor,
-};
+module.exports = { validarConductor };
