@@ -110,8 +110,16 @@ bot.on('message', async (msg) => {
         await reply(chatId, `✅ Listo ${nombreConductor}. ¡Buen viaje! 🚛`);
 
       } else {
+        // Filtrar saludos y textos que no son reportes
+        const esSaludo = /^(hola|holi|buenas|buenos|buen|hey|hi|hello|ola|q tal|qtal|como est|k tal|saludos|good)/.test(t);
+        const esDemasiadoCorto = texto.length < 4;
+
+        if (esSaludo || esDemasiadoCorto) {
+          await mostrarMenu(chatId, nombreConductor);
+          return;
+        }
+
         // Cualquier descripción de problema → tratar como avería/falla directa
-        // Guardar lo que dijo como descripción inicial
         setEstado(chatId, PASOS.ESPERANDO_VEHICULO, { tipo: 'AVERIA', descripcionInicial: texto });
         await reply(chatId, `Entendido. ¿Qué vehículo estás manejando?\nEscribe marca, modelo y año.\n\nEj: "Mercedes Actros 2020", "Volvo FH 2021", "Hyundai HD78 2019"`);
       }
