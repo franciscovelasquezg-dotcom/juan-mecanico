@@ -68,6 +68,13 @@ bot.on('message', async (msg) => {
 
     // ── PASO: ¿Qué tipo de problema? ─────────────────────────
     if (paso === PASOS.ESPERANDO_TIPO_PROBLEMA) {
+      // Si manda foto directo → asumir testigo
+      if (tieneFoto && !texto) {
+        setEstado(chatId, PASOS.ESPERANDO_VEHICULO, { tipo: 'TESTIGO', fotoDirecta: true });
+        await reply(chatId, `📸 Vi la foto. ¿Qué vehículo estás manejando?\nEscribe marca, modelo y año.\n\nEj: "Mercedes Actros 2020" o "Volvo FH 2021"`);
+        return;
+      }
+
       const t = texto.toLowerCase();
 
       // KM
@@ -151,7 +158,12 @@ bot.on('message', async (msg) => {
       const vehiculo = datos.vehiculoDescripcion || 'Vehículo no especificado';
       await reply(chatId, `⏳ Analizando para el *${vehiculo}*...`);
 
-      const respuesta = await diagnosticar(tipo, texto, vehiculo, nombreConductor);
+      let respuesta;
+      if (tieneFoto) {
+        respuesta = await diagnosticarConFoto(msg, tipo, texto, vehiculo, nombreConductor);
+      } else {
+        respuesta = await diagnosticar(tipo, texto, vehiculo, nombreConductor);
+      }
       await reply(chatId, respuesta);
 
       resetEstado(chatId);
@@ -220,6 +232,57 @@ Basándote en el manual técnico del ${vehiculo}:
     console.error('[GEMINI ERROR]', err.message);
     // Fallback por palabras clave si Gemini falla
     return diagnosticarFallback(tipo, descripcion, vehiculo);
+  }
+}
+
+// ── Diagnóstico con foto (Gemini Vision) ─────────────────────
+async function diagnosticarConFoto(msg, tipo, textoAdicional, vehiculo, conductor) {
+  try {
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.0-flash' }, { apiVersion: 'v1beta' });
+
+    // Descargar foto de Telegram
+    const fileId = msg.photo[msg.photo.length - 1].file_id;
+    const fileLink = await bot.getFileLink(fileId);
+    const https = require('https');
+    const imageBuffer = await new Promise((resolve, reject) => {
+      https.get(fileLink, (res) => {
+        const chunks = [];
+        res.on('data', chunk => chunks.push(chunk));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+        res.on('error', reject);
+      });
+    });
+    const base64 = imageBuffer.toString('base64');
+
+    const prompt = `Eres Juan Mecánico, experto en mecánica para conductores chilenos.
+Vehículo: ${vehiculo}
+Conductor: ${conductor}
+${textoAdicional ? `Descripción adicional: "${textoAdicional}"` : ''}
+
+Analiza esta imagen del tablero/vehículo y:
+1. Identifica TODOS los testigos o luces encendidas que veas
+2. Clasifica urgencia: CRITICO / URGENTE / PUEDE_ESPERAR
+3. Explica qué significa cada testigo para este ${vehiculo}
+4. Indica qué hacer ahora mismo paso a paso
+5. Máximo 150 palabras, español simple sin tecnicismos
+6. Si CRITICO: empieza con 🔴 PARA EL VEHÍCULO AHORA
+7. Si URGENTE: empieza con 🟠 Ve al taller hoy
+8. Si PUEDE_ESPERAR: empieza con 🟡`;
+
+    const result = await model.generateContent([
+      prompt,
+      { inlineData: { mimeType: 'image/jpeg', data: base64 } }
+    ]);
+
+    console.log('[VISION] Análisis de foto completado para:', vehiculo);
+    return result.response.text().trim();
+
+  } catch (err) {
+    console.error('[VISION ERROR]', err.message);
+    // Si falla vision, intentar con texto
+    return diagnosticar(tipo, textoAdicional || 'foto del tablero', vehiculo, conductor);
   }
 }
 
